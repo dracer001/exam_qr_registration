@@ -10,6 +10,8 @@ Three audiences hit this server:
   3. The Raspberry Pi (a machine) - calls /api/* to create exams remotely
      and pull registrations during sync. Gated by API_KEY, not a login.
 """
+
+
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_file
 from pydantic import ValidationError
 from functools import wraps
@@ -17,6 +19,9 @@ import base64
 import io
 import json
 import os
+import requests
+import threading
+import time
 from datetime import datetime
 
 import database as db
@@ -325,6 +330,28 @@ def api_face_image(capture_id):
     if not capture or not os.path.exists(capture["image_path"]):
         return jsonify(success=False, message="Not found"), 404
     return send_file(capture["image_path"], mimetype="image/jpeg")
+
+
+# ─── KEEP-ALIVE (anti cold-start) ────────────────────────────
+# Render's free tier spins down web services after ~15 minutes of
+# inactivity, and the next request then takes 30-60s to cold-start.
+# This background thread pings our OWN /health endpoint every 10
+# minutes so the service never goes idle long enough to sleep,
+# which keeps ESP32 requests fast and predictable during testing
+# and demos. Set SELF_URL to this service's own public Render URL.
+SELF_URL = os.environ.get("SELF_URL", "https://exam-qr-registration.onrender.com")
+KEEPALIVE_INTERVAL_SEC = 600  # 10 minutes — safely under the 15-min sleep window
+
+def keep_alive_loop():
+    while True:
+        time.sleep(KEEPALIVE_INTERVAL_SEC)
+        try:
+            r = requests.get(f"{SELF_URL}/health", timeout=10)
+            print(f"[KEEPALIVE] Self-ping -> {r.status_code}")
+        except Exception as e:
+            print(f"[KEEPALIVE] Self-ping failed: {e}")
+
+threading.Thread(target=keep_alive_loop, daemon=True).start()
 
 
 if __name__ == "__main__":

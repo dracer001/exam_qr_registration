@@ -18,7 +18,7 @@ Pi calling in as a machine, not a person logging in.
 import os
 
 SECRET_KEY = os.environ.get("SECRET_KEY", "dev-only-change-this-in-production")
-PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "").rstrip("/")  # e.g. https://examreg.yourdomain.com
+PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "https://exam-qr-registration.onrender.com").rstrip("/")  # e.g. https://examreg.yourdomain.com
 API_KEY = os.environ.get("API_KEY", "dev-api-key-change-this")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin")
 
