@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Pre-Registration Confirmed{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="card success-card">
+        <div class="icon-badge icon-badge-success">
+            <i data-feather="check-circle"></i>
+        </div>
+        <h1>{{ 'Already Registered' if already_registered else 'Pre-Registration Confirmed' }}</h1>
+        <p class="subtitle">
+            {% if already_registered %}
+                You were already pre-registered for this exam. Here are your details on file.
+            {% else %}
+                You're pre-registered for the exam below. Keep this confirmation.
+            {% endif %}
+        </p>
+
+        <div class="details">
+            <div class="details-row">
+                <span class="label"><i data-feather="user"></i> Name</span>
+                <span class="value">{{ name }}</span>
+            </div>
+            <div class="details-row">
+                <span class="label"><i data-feather="hash"></i> Matric No.</span>
+                <span class="value">{{ matric }}</span>
+            </div>
+            <div class="details-row">
+                <span class="label"><i data-feather="book-open"></i> Course</span>
+                <span class="value">{{ course }} — {{ title }}</span>
+            </div>
+            <div class="details-row">
+                <span class="label"><i data-feather="calendar"></i> Exam Date</span>
+                <span class="value">{{ exam_date }}</span>
+            </div>
+            <div class="details-row">
+                <span class="label"><i data-feather="layers"></i> Department</span>
+                <span class="value">{{ department }}</span>
+            </div>
+            <div class="details-row">
+                <span class="label"><i data-feather="bar-chart-2"></i> Level</span>
+                <span class="value">{{ level }}</span>
+            </div>
+        </div>
+
+        <div class="note">
+            <i data-feather="info"></i>
+            <span>Bring a valid ID card to the exam venue. Your booklet will be assigned on arrival.</span>
+        </div>
+    </div>
+</div>
+{% endblock %}

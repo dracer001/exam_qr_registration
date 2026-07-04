@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}{{ exam.course_code }} - Registrations{% endblock %}
+
+{% block content %}
+<div class="container container-wide">
+    <div class="admin-topbar">
+        <a href="{{ url_for('admin_exams') }}" class="btn btn-ghost btn-sm">
+            <i data-feather="arrow-left"></i> Back to exams
+        </a>
+        <a href="{{ url_for('admin_logout') }}" class="btn btn-ghost btn-sm">
+            <i data-feather="log-out"></i> Log out
+        </a>
+    </div>
+
+    <div class="card">
+        <div class="card-header-inline" style="margin-bottom: 20px;">
+            <div class="icon-badge"><i data-feather="book-open"></i></div>
+            <div>
+                <h2>{{ exam.course_code }} — {{ exam.course_title }}</h2>
+                <p class="subtitle" style="text-align:left; margin-top:2px;">{{ exam.title }} · {{ exam.exam_date }}{% if exam.venue %} · {{ exam.venue }}{% endif %}</p>
+            </div>
+        </div>
+
+        <div class="link-box">
+            <i data-feather="link"></i>
+            <input type="text" readonly value="{{ request.host_url.rstrip('/') }}/register/{{ exam.registration_token }}" onclick="this.select()" />
+        </div>
+        <div class="qr-actions" style="margin-bottom: 8px;">
+            <a href="{{ url_for('qr_image', token=exam.registration_token, download=1) }}" class="btn btn-outline" download>
+                <i data-feather="download"></i> Download QR
+            </a>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header-inline" style="margin-bottom: 16px;">
+            <div class="icon-badge"><i data-feather="users"></i></div>
+            <h2>{{ registrations | length }} Registered</h2>
+        </div>
+
+        {% if registrations %}
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Faces</th>
+                    <th>Matric No.</th>
+                    <th>Name</th>
+                    <th>Dept / Level</th>
+                    <th>Registered</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for reg in registrations %}
+                <tr>
+                    <td>
+                        <div class="face-thumb-row">
+                            {% for capture in reg.face_captures %}
+                            <img src="{{ url_for('admin_face_image', capture_id=capture.id) }}"
+                                 title="{{ capture.angle_label }}" class="face-thumb" />
+                            {% endfor %}
+                        </div>
+                    </td>
+                    <td>{{ reg.matric_no }}</td>
+                    <td>{{ reg.full_name }}</td>
+                    <td>{{ reg.department }} · {{ reg.level }}</td>
+                    <td>{{ reg.registered_at }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state">
+            <i data-feather="inbox"></i>
+            <p>No one has registered for this exam yet.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

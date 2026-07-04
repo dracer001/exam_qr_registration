@@ -1,0 +1,4 @@
+faces/
+.db
+_pycache_/
+venv/

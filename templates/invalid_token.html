@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Registration Link Invalid{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="card">
+        <div class="icon-badge icon-badge-danger">
+            <i data-feather="alert-triangle"></i>
+        </div>
+        <h1>Link Not Valid</h1>
+        <p class="subtitle">{{ reason or "This registration link doesn't match any exam. Please rescan the QR code provided by your lecturer." }}</p>
+    </div>
+</div>
+{% endblock %}

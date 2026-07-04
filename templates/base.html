@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>{% block title %}Exam Pre-Registration{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/feather-icons/4.29.0/feather.min.js"></script>
+</head>
+<body>
+
+<div class="page">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flash-stack">
+            {% for category, message in messages %}
+                <div class="flash flash-{{ category }}">
+                    <i data-feather="{{ 'alert-circle' if category == 'error' else 'info' if category == 'info' else 'check-circle' }}"></i>
+                    <span>{{ message }}</span>
+                </div>
+            {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+</div>
+
+<script>
+    feather.replace();
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

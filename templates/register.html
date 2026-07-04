@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}Exam Pre-Registration - {{ exam.course_code }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="card">
+        <div class="card-header">
+            <div class="icon-badge"><i data-feather="edit-3"></i></div>
+            <h1>Exam Pre-Registration</h1>
+            <p class="subtitle">Confirm your details below to pre-register for this exam sitting.</p>
+        </div>
+
+        <div class="exam-context">
+            <div class="exam-context-row">
+                <i data-feather="book-open"></i>
+                <div>
+                    <span class="label">Course</span>
+                    <span class="value">{{ exam.course_code }} — {{ exam.title }}</span>
+                </div>
+            </div>
+            <div class="exam-context-row">
+                <i data-feather="calendar"></i>
+                <div>
+                    <span class="label">Exam Date</span>
+                    <span class="value">{{ exam.exam_date }}</span>
+                </div>
+            </div>
+            {% if exam.venue %}
+            <div class="exam-context-row">
+                <i data-feather="map-pin"></i>
+                <div>
+                    <span class="label">Venue</span>
+                    <span class="value">{{ exam.venue }}</span>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <form method="POST" id="registration-form" novalidate>
+            <div class="form-group">
+                <label for="matric_number"><i data-feather="hash"></i> Matric Number</label>
+                <input type="text" id="matric_number" name="matric_number" placeholder="e.g. 2024/4/101180CT"
+                       value="{{ form_data.matric_number if form_data else '' }}" required />
+            </div>
+
+            <div class="form-group">
+                <label for="student_name"><i data-feather="user"></i> Full Name</label>
+                <input type="text" id="student_name" name="student_name" placeholder="Your full name"
+                       value="{{ form_data.student_name if form_data else '' }}" required />
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="department"><i data-feather="layers"></i> Department</label>
+                    <input type="text" id="department" name="department" list="dept-list" placeholder="e.g. Computer Science"
+                           value="{{ form_data.department if form_data else '' }}" required />
+                    <datalist id="dept-list">
+                        <option value="Computer Science">
+                        <option value="Electrical Engineering">
+                        <option value="Mechanical Engineering">
+                        <option value="Mathematics">
+                        <option value="Physics">
+                    </datalist>
+                </div>
+                <div class="form-group">
+                    <label for="level"><i data-feather="bar-chart-2"></i> Level</label>
+                    <select id="level" name="level" required>
+                        <option value="" disabled {{ 'selected' if not form_data }}>Select level</option>
+                        {% for lvl in levels %}
+                        <option value="{{ lvl }}" {{ 'selected' if form_data and form_data.level == lvl }}>{{ lvl }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="email"><i data-feather="mail"></i> Email <span class="optional">(optional)</span></label>
+                <input type="email" id="email" name="email" placeholder="you@example.edu"
+                       value="{{ form_data.email if form_data else '' }}" />
+            </div>
+
+            <div class="form-group camera-section">
+                <label><i data-feather="camera"></i> Face Capture</label>
+                <p class="hint">We'll take 3 quick shots for accurate recognition on exam day. You can retake any single shot.</p>
+
+                <div class="camera-frame">
+                    <video id="camera-video" autoplay playsinline></video>
+                    <canvas id="camera-canvas" style="display:none;"></canvas>
+                    <div class="camera-overlay" id="camera-overlay">
+                        <i data-feather="camera-off"></i>
+                        <span>Camera not started</span>
+                    </div>
+                </div>
+
+                <div class="camera-controls">
+                    <button type="button" id="start-camera-btn" class="btn btn-outline">
+                        <i data-feather="video"></i> Start Camera
+                    </button>
+                    <button type="button" id="capture-btn" class="btn btn-primary" disabled>
+                        <i data-feather="camera"></i> <span id="capture-btn-label">Capture Front</span>
+                    </button>
+                </div>
+
+                <div class="thumb-grid" id="thumb-grid">
+                    {% for angle in ['front', 'left', 'right'] %}
+                    <div class="thumb-slot" data-angle="{{ angle }}">
+                        <div class="thumb-image-wrap">
+                            <img class="thumb-image" style="display:none;" alt="{{ angle }} capture" />
+                            <div class="thumb-placeholder">
+                                <i data-feather="user"></i>
+                            </div>
+                            <button type="button" class="thumb-edit-btn" style="display:none;" data-retake="{{ angle }}">
+                                <i data-feather="edit-2"></i>
+                            </button>
+                        </div>
+                        <span class="thumb-label">{{ angle | capitalize }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <input type="hidden" name="face_images_json" id="face_images_json" />
+            </div>
+
+
+            <button type="submit" class="btn btn-primary btn-block" id="submit-btn" disabled>
+                <i data-feather="check-circle"></i> Complete Pre-Registration
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/camera.js') }}"></script>
+{% endblock %}
