@@ -7,7 +7,7 @@
         <div class="card-header">
             <div class="icon-badge"><i data-feather="edit-3"></i></div>
             <h1>Exam Pre-Registration</h1>
-            <p class="subtitle">Confirm your details below to pre-register for this exam sitting.</p>
+            <p class="subtitle">Enter your matric number to continue.</p>
         </div>
 
         <div class="exam-context">
@@ -36,52 +36,55 @@
             {% endif %}
         </div>
 
-        <form method="POST" id="registration-form" novalidate>
+        <!-- Step 1: matric number only -->
+        <div id="step-matric" class="reg-step">
             <div class="form-group">
                 <label for="matric_number"><i data-feather="hash"></i> Matric Number</label>
-                <input type="text" id="matric_number" name="matric_number" placeholder="e.g. 2024/4/101180CT"
-                       value="{{ form_data.matric_number if form_data else '' }}" required />
+                <input type="text" id="matric_number" placeholder="e.g. 2024/4/101180CT" autocomplete="off" autofocus />
             </div>
+            <button type="button" class="btn btn-primary btn-block" id="lookup-btn">
+                <i data-feather="search"></i> Continue
+            </button>
+            <div id="lookup-error" class="desk-message desk-message-error" style="display:none; margin-top:14px;"></div>
+        </div>
 
-            <div class="form-group">
-                <label for="student_name"><i data-feather="user"></i> Full Name</label>
-                <input type="text" id="student_name" name="student_name" placeholder="Your full name"
-                       value="{{ form_data.student_name if form_data else '' }}" required />
+        <!-- Step 1b: not registered for this course - cancel or proceed anyway -->
+        <div id="step-not-registered" class="reg-step" style="display:none;">
+            <div class="desk-message desk-message-error">
+                <i data-feather="alert-triangle"></i>
+                <span id="not-registered-text"></span>
             </div>
+            <div style="display:flex; gap:10px; margin-top:14px;">
+                <button type="button" class="btn btn-outline" id="not-registered-cancel-btn" style="flex:1;">
+                    <i data-feather="x"></i> Cancel
+                </button>
+                <button type="button" class="btn btn-primary" id="not-registered-proceed-btn" style="flex:1;">
+                    <i data-feather="arrow-right"></i> Proceed Anyway
+                </button>
+            </div>
+        </div>
 
-            <div class="form-row">
-                <div class="form-group">
-                    <label for="department"><i data-feather="layers"></i> Department</label>
-                    <input type="text" id="department" name="department" list="dept-list" placeholder="e.g. Computer Science"
-                           value="{{ form_data.department if form_data else '' }}" required />
-                    <datalist id="dept-list">
-                        <option value="Computer Science">
-                        <option value="Electrical Engineering">
-                        <option value="Mechanical Engineering">
-                        <option value="Mathematics">
-                        <option value="Physics">
-                    </datalist>
+        <!-- Step 2: confirmed identity + face capture -->
+        <form method="POST" id="registration-form" style="display:none;" novalidate>
+            <input type="hidden" name="matric_number" id="confirmed-matric" />
+            <input type="hidden" name="proceed_anyway" id="proceed-anyway-flag" value="0" />
+
+            <div class="student-confirm-card">
+                <div class="confirm-avatar" id="confirm-avatar">--</div>
+                <div>
+                    <p class="name" id="confirm-name"></p>
+                    <p class="matric" id="confirm-meta"></p>
                 </div>
-                <div class="form-group">
-                    <label for="level"><i data-feather="bar-chart-2"></i> Level</label>
-                    <select id="level" name="level" required>
-                        <option value="" disabled {{ 'selected' if not form_data }}>Select level</option>
-                        {% for lvl in levels %}
-                        <option value="{{ lvl }}" {{ 'selected' if form_data and form_data.level == lvl }}>{{ lvl }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
             </div>
 
-            <div class="form-group">
-                <label for="email"><i data-feather="mail"></i> Email <span class="optional">(optional)</span></label>
-                <input type="email" id="email" name="email" placeholder="you@example.edu"
-                       value="{{ form_data.email if form_data else '' }}" />
+            <div id="proceed-anyway-banner" class="desk-message desk-message-error" style="display:none; margin-top:12px;">
+                <i data-feather="alert-triangle"></i>
+                <span>Proceeding without a course registration on file - this will be flagged for the examiner to review.</span>
             </div>
 
-            <div class="form-group camera-section">
+            <div class="form-group camera-section" style="margin-top:20px;">
                 <label><i data-feather="camera"></i> Face Capture</label>
-                <p class="hint">We'll take 3 quick shots for accurate recognition on exam day. You can retake any single shot.</p>
+                <p class="hint">We'll take {{ angle_labels | length }} quick shots from different angles for accurate recognition on exam day. You can retake any single shot.</p>
 
                 <div class="camera-frame">
                     <video id="camera-video" autoplay playsinline></video>
@@ -102,25 +105,24 @@
                 </div>
 
                 <div class="thumb-grid" id="thumb-grid">
-                    {% for angle in ['front', 'left', 'right'] %}
-                    <div class="thumb-slot" data-angle="{{ angle }}">
+                    {% for angle in angle_labels %}
+                    <div class="thumb-slot" data-angle="{{ angle.key }}">
                         <div class="thumb-image-wrap">
-                            <img class="thumb-image" style="display:none;" alt="{{ angle }} capture" />
+                            <img class="thumb-image" style="display:none;" alt="{{ angle.label }} capture" />
                             <div class="thumb-placeholder">
                                 <i data-feather="user"></i>
                             </div>
-                            <button type="button" class="thumb-edit-btn" style="display:none;" data-retake="{{ angle }}">
+                            <button type="button" class="thumb-edit-btn" style="display:none;" data-retake="{{ angle.key }}">
                                 <i data-feather="edit-2"></i>
                             </button>
                         </div>
-                        <span class="thumb-label">{{ angle | capitalize }}</span>
+                        <span class="thumb-label">{{ angle.label }}</span>
                     </div>
                     {% endfor %}
                 </div>
 
                 <input type="hidden" name="face_images_json" id="face_images_json" />
             </div>
-
 
             <button type="submit" class="btn btn-primary btn-block" id="submit-btn" disabled>
                 <i data-feather="check-circle"></i> Complete Pre-Registration
@@ -131,5 +133,10 @@
 {% endblock %}
 
 {% block scripts %}
+<script>
+    window.REGISTER_LOOKUP_URL = "{{ url_for('register_lookup', token=token) }}";
+    window.CAPTURE_ANGLES = {{ angle_labels | tojson }};
+</script>
 <script src="{{ url_for('static', filename='js/camera.js') }}"></script>
+<script src="{{ url_for('static', filename='js/register_flow.js') }}"></script>
 {% endblock %}

@@ -1,0 +1,21 @@
+course_code,title,lecturer_staff_no
+CSC101,Introduction to Computer Science,STF001
+CSC102,Introduction to Problem Solving,STF001
+CSC201,Data Structures and Algorithms,STF001
+CSC202,Discrete Mathematics,STF004
+CSC301,Database Management Systems,STF008
+CSC302,Operating Systems,STF008
+CSC401,Software Engineering,STF001
+CSC402,Artificial Intelligence,STF008
+EEE201,Circuit Theory I,STF002
+EEE202,Electromagnetic Fields,STF002
+EEE301,Electronics I,STF009
+EEE401,Power Systems Analysis,STF009
+MEE201,Engineering Mechanics,STF006
+MEE301,Thermodynamics,STF006
+MEE401,Fluid Mechanics,STF006
+ACC101,Principles of Accounting I,STF005
+ACC201,Financial Accounting,STF005
+ACC301,Cost Accounting,STF010
+ECO101,Principles of Economics I,STF003
+ECO201,Microeconomic Theory,STF007

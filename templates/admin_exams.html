@@ -21,20 +21,23 @@
                 <p class="subtitle">Generates a registration link + QR code for this exam sitting.</p>
             </div>
 
-            <form method="POST">
+            <form method="POST" id="create-exam-form">
                 <div class="form-group">
-                    <label for="lecturer_name"><i data-feather="user"></i> Lecturer Name</label>
-                    <input type="text" id="lecturer_name" name="lecturer_name" placeholder="e.g. Dr. Adeyemi" required />
+                    <label for="course-search"><i data-feather="book-open"></i> Course</label>
+                    <div class="course-picker" id="course-picker">
+                        <input type="text" id="course-search" placeholder="Type a course code or title to search..." autocomplete="off" />
+                        <input type="hidden" name="course_id" id="course-id-input" required />
+                        <div class="course-picker-list" id="course-picker-list" style="display:none;"></div>
+                    </div>
+                    <div class="course-picker-selected" id="course-picker-selected" style="display:none;">
+                        <i data-feather="check-circle"></i>
+                        <span id="course-picker-selected-text"></span>
+                        <button type="button" id="course-picker-clear" class="course-picker-clear-btn"><i data-feather="x"></i></button>
+                    </div>
                 </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="course_code"><i data-feather="hash"></i> Course Code</label>
-                        <input type="text" id="course_code" name="course_code" placeholder="e.g. CSC401" required />
-                    </div>
-                    <div class="form-group">
-                        <label for="course_title"><i data-feather="book-open"></i> Course Title</label>
-                        <input type="text" id="course_title" name="course_title" placeholder="e.g. Operating Systems" required />
-                    </div>
+                <div class="form-group">
+                    <label for="invigilator_name"><i data-feather="user-check"></i> Invigilator Name</label>
+                    <input type="text" id="invigilator_name" name="invigilator_name" placeholder="e.g. Dr. Adeyemi" required />
                 </div>
                 <div class="form-group">
                     <label for="exam_title"><i data-feather="file-text"></i> Exam Title</label>
@@ -99,6 +102,7 @@
                 <tr>
                     <th>Course</th>
                     <th>Exam</th>
+                    <th>Invigilator</th>
                     <th>Date</th>
                     <th>Registrations</th>
                     <th>Actions</th>
@@ -109,6 +113,7 @@
                 <tr>
                     <td>{{ exam.course_code }}</td>
                     <td>{{ exam.title }}</td>
+                    <td>{{ exam.invigilator_name or '—' }}</td>
                     <td>{{ exam.exam_date }}</td>
                     <td><span class="pill">{{ exam.registration_count }}</span></td>
                     <td class="table-actions">
@@ -131,5 +136,13 @@
         {% endif %}
     </div>
 </div>
+
+<script>
+window.COURSES_DATA = {{ courses | tojson }};
+</script>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/course_picker.js') }}"></script>
 {% endblock %}
 

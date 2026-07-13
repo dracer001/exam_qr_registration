@@ -273,3 +273,58 @@ input:focus, select:focus {
 .face-thumb-row { display: flex; gap: 4px; }
 .face-thumb { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; border: 1.5px solid var(--gray-200); }
 
+/* Course picker combobox */
+.course-picker { position: relative; }
+.course-picker-list {
+    position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+    background: white; border: 1px solid var(--gray-200); border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-hover); max-height: 240px; overflow-y: auto; z-index: 20;
+}
+.course-picker-item { padding: 10px 14px; font-size: 13px; cursor: pointer; border-bottom: 1px solid var(--gray-100); }
+.course-picker-item:last-child { border-bottom: none; }
+.course-picker-item:hover { background: var(--primary-light); }
+.course-picker-item-lecturer { display: block; font-size: 11px; color: var(--gray-500); margin-top: 2px; }
+.course-picker-empty { padding: 14px; font-size: 13px; color: var(--gray-400); text-align: center; }
+
+.course-picker-selected {
+    display: flex; align-items: center; gap: 8px;
+    padding: 11px 14px; border: 1.5px solid var(--success); border-radius: var(--radius-sm);
+    background: var(--success-light); font-size: 14px; color: var(--success-dark);
+}
+.course-picker-selected svg { width: 16px; height: 16px; flex-shrink: 0; }
+.course-picker-selected span { flex: 1; }
+.course-picker-clear-btn {
+    background: none; border: none; cursor: pointer; padding: 2px;
+    display: flex; color: var(--gray-500);
+}
+.course-picker-clear-btn svg { width: 14px; height: 14px; }
+
+
+/* Status pill (used for the course-registration flag on admin views) */
+.status-pill {
+    display: inline-block; padding: 3px 10px; border-radius: 999px;
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+}
+
+/* Registration flow: banners + confirmed-student card */
+.desk-message {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px; border-radius: var(--radius-sm); font-size: 13px; line-height: 1.4;
+}
+.desk-message svg { width: 18px; height: 18px; flex-shrink: 0; }
+.desk-message-error { background: var(--danger-light); color: var(--danger); }
+.desk-message-success { background: var(--success-light); color: var(--success-dark); }
+
+.student-confirm-card {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 16px; border: 1.5px solid var(--gray-200); border-radius: var(--radius-sm);
+    background: var(--gray-50);
+}
+.confirm-avatar {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: var(--primary-gradient); color: white;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 14px; flex-shrink: 0;
+}
+.student-confirm-card .name { font-size: 15px; font-weight: 700; color: var(--gray-900); }
+.student-confirm-card .matric { font-size: 12px; color: var(--gray-500); margin-top: 2px; }

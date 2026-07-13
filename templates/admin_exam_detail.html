@@ -47,6 +47,7 @@
                     <th>Name</th>
                     <th>Dept / Level</th>
                     <th>Registered</th>
+                    <th>On roster?</th>
                 </tr>
             </thead>
             <tbody>
@@ -64,6 +65,13 @@
                     <td>{{ reg.full_name }}</td>
                     <td>{{ reg.department }} · {{ reg.level }}</td>
                     <td>{{ reg.registered_at }}</td>
+                    <td>
+                        {% if reg.course_registration_confirmed %}
+                        <span class="status-pill" style="background:var(--success-light); color:var(--success-dark);">Yes</span>
+                        {% else %}
+                        <span class="status-pill" style="background:var(--danger-light); color:var(--danger);" title="Proceeded without a course registration on file">Not registered</span>
+                        {% endif %}
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>

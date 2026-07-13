@@ -10,8 +10,6 @@ Three audiences hit this server:
   3. The Raspberry Pi (a machine) - calls /api/* to create exams remotely
      and pull registrations during sync. Gated by API_KEY, not a login.
 """
-
-
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_file
 from pydantic import ValidationError
 from functools import wraps
@@ -19,22 +17,17 @@ import base64
 import io
 import json
 import os
-import requests
-import threading
-import time
 from datetime import datetime
 
 import database as db
 import config
-from schemas import StudentRegistrationCreate, VALID_LEVELS
+from schemas import StudentRegistrationCreate, ANGLE_LABELS
 
 app = Flask(__name__)
 app.secret_key = config.SECRET_KEY
 
 FACE_DIR = os.path.join(os.path.dirname(__file__), "data", "faces")
 os.makedirs(FACE_DIR, exist_ok=True)
-
-ANGLE_LABELS = ["front", "left", "right"]
 
 
 # ---------------------------------------------------------------
@@ -88,7 +81,51 @@ def register(token):
     if request.method == "POST":
         return handle_registration_submit(token, exam)
 
-    return render_template("register.html", exam=exam, token=token, levels=sorted(VALID_LEVELS))
+    return render_template("register.html", exam=exam, token=token, angle_labels=ANGLE_LABELS)
+
+
+@app.route("/register/<token>/lookup", methods=["POST"])
+def register_lookup(token):
+    """
+    Step 1 of registration: matric number only. Looks the student up in
+    the master record (populated ahead of time - see Phase 1) and checks
+    whether they're on this course's roster. Returns one of:
+      - not_found: no master student record for that matric number at all
+      - registered: on the roster - frontend can go straight to face capture
+      - not_registered: student exists but isn't on this course's roster -
+        frontend shows the "not registered, proceed anyway?" interstitial
+    """
+    exam = db.get_exam_by_token(token)
+    if not exam:
+        return jsonify(result="not_found"), 404
+
+    payload = request.get_json(silent=True) or {}
+    matric_no = (payload.get("matric_number") or "").strip()
+    if not matric_no:
+        return jsonify(result="not_found", message="Enter a matric number.")
+
+    student = db.find_student_by_matric(matric_no)
+    if not student:
+        return jsonify(result="not_found",
+                        message="No student record found for that matric number. Contact the exam office.")
+
+    already = db.get_existing_registration(exam["id"], student["id"])
+    if already:
+        return jsonify(result="already_registered", candidate={
+            "matric_no": student["matric_no"], "full_name": student["full_name"],
+            "department": student["department"], "level": student["level"],
+        })
+
+    on_roster = db.is_student_registered_for_course(student["id"], exam["course_id"])
+    candidate = {
+        "matric_no": student["matric_no"], "full_name": student["full_name"],
+        "department": student["department"], "level": student["level"],
+    }
+    if on_roster:
+        return jsonify(result="registered", candidate=candidate)
+    return jsonify(result="not_registered", candidate=candidate,
+                    message=f"{student['full_name']} is not on the course registration list for "
+                            f"{exam['course_code']}.")
 
 
 def handle_registration_submit(token, exam):
@@ -100,11 +137,7 @@ def handle_registration_submit(token, exam):
 
     payload = {
         "matric_number": form.get("matric_number", "").strip(),
-        "student_name": form.get("student_name", "").strip(),
-        "department": form.get("department", "").strip(),
-        "level": form.get("level", "").strip(),
-        "email": form.get("email", "").strip() or None,
-        "phone": form.get("phone", "").strip() or None,
+        "proceed_anyway": form.get("proceed_anyway", "0") == "1",
         "face_images": face_images,
     }
 
@@ -114,38 +147,46 @@ def handle_registration_submit(token, exam):
         for err in e.errors():
             flash(err["msg"], "error")
         return render_template("register.html", exam=exam, token=token,
-                                levels=sorted(VALID_LEVELS), form_data=payload), 400
+                                angle_labels=ANGLE_LABELS), 400
 
-    student_id = db.upsert_student(
-        matric_no=data.matric_number, full_name=data.student_name,
-        department=data.department, level=data.level,
-        email=data.email, phone=data.phone,
-    )
+    student = db.find_student_by_matric(data.matric_number)
+    if not student:
+        flash("No student record found for that matric number. Contact the exam office.", "error")
+        return render_template("register.html", exam=exam, token=token,
+                                angle_labels=ANGLE_LABELS), 400
 
-    existing_reg = db.get_existing_registration(exam["id"], student_id)
+    existing_reg = db.get_existing_registration(exam["id"], student["id"])
     if existing_reg:
         flash("You are already registered for this exam.", "info")
         session["registration"] = {
-            "name": data.student_name, "matric": data.matric_number,
+            "name": student["full_name"], "matric": student["matric_no"],
             "course": exam["course_code"], "title": exam["title"],
-            "exam_date": exam["exam_date"], "department": data.department,
-            "level": data.level, "already_registered": True,
+            "exam_date": exam["exam_date"], "department": student["department"],
+            "level": student["level"], "already_registered": True,
         }
         return redirect(url_for("register_success", token=token))
+
+    on_roster = db.is_student_registered_for_course(student["id"], exam["course_id"])
+    if not on_roster and not data.proceed_anyway:
+        # Should only happen if someone bypasses the frontend gate - the
+        # UI already routes through the not-registered interstitial first.
+        flash(f"You are not registered for {exam['course_code']}. Confirm you want to proceed anyway.", "error")
+        return render_template("register.html", exam=exam, token=token,
+                                angle_labels=ANGLE_LABELS), 400
 
     for i, image_data in enumerate(data.face_images):
         saved_path = save_face_image(data.matric_number, image_data, i)
         if saved_path:
-            angle = ANGLE_LABELS[i] if i < len(ANGLE_LABELS) else f"capture-{i}"
-            db.save_face_capture(student_id, saved_path, angle, i)
+            angle = ANGLE_LABELS[i]["key"] if i < len(ANGLE_LABELS) else f"capture-{i}"
+            db.save_face_capture(student["id"], saved_path, angle, i)
 
-    db.create_registration(exam["id"], student_id)
+    db.create_registration(exam["id"], student["id"], course_registration_confirmed=on_roster)
 
     session["registration"] = {
-        "name": data.student_name, "matric": data.matric_number,
+        "name": student["full_name"], "matric": student["matric_no"],
         "course": exam["course_code"], "title": exam["title"],
-        "exam_date": exam["exam_date"], "department": data.department,
-        "level": data.level, "already_registered": False,
+        "exam_date": exam["exam_date"], "department": student["department"],
+        "level": student["level"], "already_registered": False,
     }
     return redirect(url_for("register_success", token=token))
 
@@ -226,22 +267,27 @@ def admin_logout():
 @require_admin
 def admin_exams():
     if request.method == "POST":
-        lecturer_id = db.get_or_create_lecturer(request.form.get("lecturer_name", "").strip())
-        course_id = db.get_or_create_course(
-            request.form.get("course_code", "").strip(),
-            request.form.get("course_title", "").strip(),
-        )
-        exam = db.create_exam(
-            course_id=course_id, lecturer_id=lecturer_id,
-            title=request.form.get("exam_title", "").strip(),
-            exam_date=request.form.get("exam_date", "").strip(),
-            venue=request.form.get("venue", "").strip(),
-        )
+        course_id = request.form.get("course_id", type=int)
+        if not course_id:
+            flash("Select a course from the list.", "error")
+            return redirect(url_for("admin_exams"))
+        try:
+            exam = db.create_exam_from_course(
+                course_id=course_id,
+                invigilator_name=request.form.get("invigilator_name", "").strip(),
+                title=request.form.get("exam_title", "").strip(),
+                exam_date=request.form.get("exam_date", "").strip(),
+                venue=request.form.get("venue", "").strip(),
+            )
+        except db.CourseHasNoLecturerError as e:
+            flash(str(e), "error")
+            return redirect(url_for("admin_exams"))
         return redirect(url_for("admin_exams", new=exam["registration_token"]))
 
     exams = db.list_exams()
+    courses = db.list_courses_for_dropdown()
     new_token = request.args.get("new")
-    return render_template("admin_exams.html", exams=exams, new_token=new_token,
+    return render_template("admin_exams.html", exams=exams, courses=courses, new_token=new_token,
                             base_url=config.public_base_url(request))
 
 
@@ -273,24 +319,34 @@ def admin_face_image(capture_id):
 @require_api_key
 def api_create_exam():
     payload = request.get_json(silent=True) or {}
-    required = ["lecturer_name", "course_code", "course_title", "exam_title", "exam_date"]
+    required = ["course_id", "invigilator_name", "exam_title", "exam_date"]
     missing = [f for f in required if not payload.get(f)]
     if missing:
         return jsonify(success=False, message=f"Missing fields: {', '.join(missing)}"), 400
 
-    lecturer_id = db.get_or_create_lecturer(payload["lecturer_name"])
-    course_id = db.get_or_create_course(payload["course_code"], payload["course_title"])
-    exam = db.create_exam(
-        course_id=course_id, lecturer_id=lecturer_id,
-        title=payload["exam_title"], exam_date=payload["exam_date"],
-        venue=payload.get("venue", ""),
-    )
+    try:
+        exam = db.create_exam_from_course(
+            course_id=payload["course_id"], invigilator_name=payload["invigilator_name"],
+            title=payload["exam_title"], exam_date=payload["exam_date"],
+            venue=payload.get("venue", ""),
+        )
+    except db.CourseHasNoLecturerError as e:
+        return jsonify(success=False, message=str(e)), 400
+    except ValueError as e:
+        return jsonify(success=False, message=str(e)), 404
+
     registration_url = f"{config.public_base_url(request)}/register/{exam['registration_token']}"
     return jsonify(success=True, data={
         "exam_id": exam["id"],
         "registration_token": exam["registration_token"],
         "registration_url": registration_url,
     }), 201
+
+
+@app.route("/api/courses", methods=["GET"])
+@require_api_key
+def api_list_courses():
+    return jsonify(success=True, data=db.list_courses_for_dropdown())
 
 
 @app.route("/api/exams/<int:exam_id>", methods=["GET"])
@@ -332,35 +388,13 @@ def api_face_image(capture_id):
     return send_file(capture["image_path"], mimetype="image/jpeg")
 
 
-# ─── KEEP-ALIVE (anti cold-start) ────────────────────────────
-# Render's free tier spins down web services after ~15 minutes of
-# inactivity, and the next request then takes 30-60s to cold-start.
-# This background thread pings our OWN /health endpoint every 10
-# minutes so the service never goes idle long enough to sleep,
-# which keeps ESP32 requests fast and predictable during testing
-# and demos. Set SELF_URL to this service's own public Render URL.
-SELF_URL = os.environ.get("SELF_URL", "https://exam-qr-registration.onrender.com")
-KEEPALIVE_INTERVAL_SEC = 600  # 10 minutes — safely under the 15-min sleep window
-
-def keep_alive_loop():
-    while True:
-        time.sleep(KEEPALIVE_INTERVAL_SEC)
-        try:
-            r = requests.get(f"{SELF_URL}/health", timeout=10)
-            print(f"[KEEPALIVE] Self-ping -> {r.status_code}")
-        except Exception as e:
-            print(f"[KEEPALIVE] Self-ping failed: {e}")
-
-threading.Thread(target=keep_alive_loop, daemon=True).start()
-
-
 if __name__ == "__main__":
     db.init_db()
     print("\n" + "=" * 60)
     print("Exam pre-registration server")
     print("=" * 60)
-    print(f"Admin login:  http://localhost:5500/admin/login")
+    print(f"Admin login:  http://localhost:5000/admin/login")
     print(f"Admin password (dev default unless ADMIN_PASSWORD is set): {config.ADMIN_PASSWORD}")
     print(f"API key (dev default unless API_KEY is set): {config.API_KEY}")
     print("=" * 60 + "\n")
-    app.run(host="0.0.0.0", port=5500, debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=True)

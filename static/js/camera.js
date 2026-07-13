@@ -1,12 +1,21 @@
 /**
- * camera.js - Guided 3-angle face capture for exam pre-registration.
- * Each angle (front/left/right) gets its own preview thumbnail that can
- * be retaken individually. Final result is stored as a JSON array of
- * base64 strings, in front/left/right order, in #face_images_json.
+ * camera.js - Guided multi-angle face capture for exam pre-registration.
+ * Angle list comes from window.CAPTURE_ANGLES (set in register.html from
+ * the server-side ANGLE_LABELS in schemas.py, so the count/order here
+ * always matches what the backend expects) - falls back to the old
+ * front/left/right set if that global isn't present for some reason.
+ * Each angle gets its own preview thumbnail that can be retaken
+ * individually. Final result is stored as a JSON array of base64
+ * strings, in angle order, in #face_images_json.
  */
 (function () {
-    const ANGLES = ["front", "left", "right"];
-    const ANGLE_LABELS = { front: "Front", left: "Left", right: "Right" };
+    const ANGLE_DEFS = window.CAPTURE_ANGLES || [
+        { key: "front", label: "Front" },
+        { key: "left", label: "Left" },
+        { key: "right", label: "Right" },
+    ];
+    const ANGLES = ANGLE_DEFS.map((a) => a.key);
+    const ANGLE_LABELS = Object.fromEntries(ANGLE_DEFS.map((a) => [a.key, a.label]));
 
     const video = document.getElementById("camera-video");
     const canvas = document.getElementById("camera-canvas");
@@ -22,8 +31,8 @@
 
     let stream = null;
     // captures[angle] = base64 dataUrl or null
-    let captures = { front: null, left: null, right: null };
-    let targetAngle = "front"; // which slot the next capture fills
+    let captures = Object.fromEntries(ANGLES.map((a) => [a, null]));
+    let targetAngle = ANGLES[0]; // which slot the next capture fills
 
     function nextEmptyAngle() {
         return ANGLES.find((a) => !captures[a]) || null;
@@ -37,6 +46,7 @@
 
     function updateThumb(angle) {
         const slot = thumbGrid.querySelector(`.thumb-slot[data-angle="${angle}"]`);
+        if (!slot) return;
         const img = slot.querySelector(".thumb-image");
         const placeholder = slot.querySelector(".thumb-placeholder");
         const editBtn = slot.querySelector(".thumb-edit-btn");
@@ -71,7 +81,7 @@
     }
 
     async function startCamera(forAngle) {
-        targetAngle = forAngle || nextEmptyAngle() || "front";
+        targetAngle = forAngle || nextEmptyAngle() || ANGLES[0];
         if (stream) {
             refreshUI();
             return;
@@ -128,12 +138,32 @@
         }
     }
 
+    function reset() {
+        captures = Object.fromEntries(ANGLES.map((a) => [a, null]));
+        targetAngle = ANGLES[0];
+        if (stream) {
+            stream.getTracks().forEach((t) => t.stop());
+            stream = null;
+        }
+        overlay.style.display = "flex";
+        overlay.innerHTML = '<i data-feather="camera-off"></i><span>Camera not started</span>';
+        startBtn.style.display = "inline-flex";
+        startBtn.innerHTML = '<i data-feather="video"></i> Start Camera';
+        refreshUI();
+        if (window.feather) feather.replace();
+    }
+
     startBtn.addEventListener("click", () => startCamera());
     captureBtn.addEventListener("click", captureFrame);
     thumbGrid.addEventListener("click", (e) => {
         const btn = e.target.closest(".thumb-edit-btn");
         if (btn) retakeAngle(btn.dataset.retake);
     });
+
+    // Exposed so register_flow.js can reset the capture state if the
+    // student cancels out of the "not registered" interstitial and
+    // starts over with a different matric number.
+    window.resetFaceCapture = reset;
 
     refreshUI();
 })();

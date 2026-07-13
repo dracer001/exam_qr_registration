@@ -72,13 +72,34 @@ def get_or_create_course(course_code: str, title: str) -> int:
     return course_id
 
 
-def create_exam(course_id: int, lecturer_id: int, title: str, exam_date: str, venue: str) -> dict:
+class CourseHasNoLecturerError(Exception):
+    pass
+
+
+def create_exam_from_course(course_id: int, invigilator_name: str, title: str,
+                             exam_date: str, venue: str) -> dict:
+    """
+    Replaces the old create_exam(): courses are now selected from the
+    existing master catalog (see Phase 1), not typed in ad hoc, so this
+    takes a course_id and derives lecturer_id from the course record
+    rather than accepting one directly. invigilator_name is free text -
+    the person invigilating a sitting isn't necessarily the course's own
+    lecturer.
+    """
+    course = get_course_by_id(course_id)
+    if not course:
+        raise ValueError(f"Course id {course_id} not found")
+    if not course["lecturer_id"]:
+        raise CourseHasNoLecturerError(
+            f"{course['course_code']} has no lecturer assigned - update the course record first"
+        )
+
     token = secrets.token_urlsafe(16)
     conn = get_db()
     cur = conn.execute(
-        """INSERT INTO exams (course_id, lecturer_id, title, exam_date, venue, registration_token)
-           VALUES (?, ?, ?, ?, ?, ?)""",
-        (course_id, lecturer_id, title, exam_date, venue, token),
+        """INSERT INTO exams (course_id, lecturer_id, invigilator_name, title, exam_date, venue, registration_token)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (course_id, course["lecturer_id"], invigilator_name, title, exam_date, venue, token),
     )
     conn.commit()
     exam_id = cur.lastrowid
@@ -90,7 +111,7 @@ def list_exams() -> list:
     conn = get_db()
     rows = conn.execute(
         """SELECT e.id, e.title, e.exam_date, e.venue, e.registration_token, e.created_at,
-                  c.course_code,
+                  e.invigilator_name, c.course_code,
                   (SELECT COUNT(*) FROM registrations r WHERE r.exam_id = e.id) AS registration_count
            FROM exams e JOIN courses c ON c.id = e.course_id
            ORDER BY e.created_at DESC"""
@@ -103,7 +124,7 @@ def get_exam_by_token(token: str):
     conn = get_db()
     row = conn.execute(
         """SELECT e.id, e.title, e.exam_date, e.venue, e.registration_opens, e.registration_closes,
-                  c.course_code
+                  c.course_code, c.id AS course_id
            FROM exams e JOIN courses c ON c.id = e.course_id
            WHERE e.registration_token = ?""",
         (token,),
@@ -116,7 +137,7 @@ def get_exam_by_id(exam_id: int):
     conn = get_db()
     row = conn.execute(
         """SELECT e.id, e.title, e.exam_date, e.venue, e.registration_token,
-                  e.registration_opens, e.registration_closes, e.created_at,
+                  e.registration_opens, e.registration_closes, e.created_at, e.invigilator_name,
                   c.course_code, c.title AS course_title
            FROM exams e JOIN courses c ON c.id = e.course_id
            WHERE e.id = ?""",
@@ -129,7 +150,7 @@ def get_exam_by_id(exam_id: int):
 def list_registrations_for_exam(exam_id: int) -> list:
     conn = get_db()
     rows = conn.execute(
-        """SELECT r.id AS registration_id, r.registered_at, r.status,
+        """SELECT r.id AS registration_id, r.registered_at, r.status, r.course_registration_confirmed,
                   s.id AS student_id, s.matric_no, s.full_name, s.department,
                   s.level, s.email, s.phone
            FROM registrations r JOIN students s ON s.id = r.student_id
@@ -208,11 +229,11 @@ def get_existing_registration(exam_id: int, student_id: int):
     return dict(row) if row else None
 
 
-def create_registration(exam_id: int, student_id: int) -> int:
+def create_registration(exam_id: int, student_id: int, course_registration_confirmed: bool = True) -> int:
     conn = get_db()
     cur = conn.execute(
-        "INSERT INTO registrations (exam_id, student_id) VALUES (?, ?)",
-        (exam_id, student_id),
+        "INSERT INTO registrations (exam_id, student_id, course_registration_confirmed) VALUES (?, ?, ?)",
+        (exam_id, student_id, 1 if course_registration_confirmed else 0),
     )
     conn.commit()
     reg_id = cur.lastrowid
@@ -238,3 +259,122 @@ def count_face_captures(student_id: int) -> int:
     ).fetchone()
     conn.close()
     return row["c"]
+
+
+# ---------------------------------------------------------------
+# Master data model: lecturers, courses, course registrations
+# ---------------------------------------------------------------
+
+def upsert_lecturer(staff_no: str, full_name: str, email: str = None) -> int:
+    conn = get_db()
+    row = conn.execute("SELECT id FROM lecturers WHERE staff_no = ?", (staff_no,)).fetchone()
+    if row:
+        conn.execute("UPDATE lecturers SET full_name=?, email=? WHERE id=?", (full_name, email, row["id"]))
+        conn.commit()
+        conn.close()
+        return row["id"]
+    cur = conn.execute(
+        "INSERT INTO lecturers (staff_no, full_name, email) VALUES (?, ?, ?)",
+        (staff_no, full_name, email),
+    )
+    conn.commit()
+    lecturer_id = cur.lastrowid
+    conn.close()
+    return lecturer_id
+
+
+def upsert_course(course_code: str, title: str, lecturer_id: int = None) -> int:
+    conn = get_db()
+    course_code = course_code.strip().upper()
+    row = conn.execute("SELECT id FROM courses WHERE course_code = ?", (course_code,)).fetchone()
+    if row:
+        conn.execute("UPDATE courses SET title=?, lecturer_id=? WHERE id=?", (title, lecturer_id, row["id"]))
+        conn.commit()
+        conn.close()
+        return row["id"]
+    cur = conn.execute(
+        "INSERT INTO courses (course_code, title, lecturer_id) VALUES (?, ?, ?)",
+        (course_code, title, lecturer_id),
+    )
+    conn.commit()
+    course_id = cur.lastrowid
+    conn.close()
+    return course_id
+
+
+def list_courses_for_dropdown() -> list:
+    """For the exam-creation course picker (search/select) - phase 2."""
+    conn = get_db()
+    rows = conn.execute(
+        """SELECT c.id, c.course_code, c.title, l.full_name AS lecturer_name
+           FROM courses c LEFT JOIN lecturers l ON l.id = c.lecturer_id
+           ORDER BY c.course_code"""
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_course_by_id(course_id: int):
+    conn = get_db()
+    row = conn.execute(
+        """SELECT c.*, l.full_name AS lecturer_name
+           FROM courses c LEFT JOIN lecturers l ON l.id = c.lecturer_id
+           WHERE c.id = ?""",
+        (course_id,),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def upsert_master_student(matric_no: str, full_name: str, department: str, level: str,
+                           email: str = None, phone: str = None, faculty: str = None,
+                           rfid_card_uid: str = None, photo_path: str = None) -> int:
+    """
+    Populates the master student record ahead of any exam - via bulk
+    import (import_master_data.py), not student self-entry. This is
+    intentionally the same table registration used to read from before,
+    just no longer written to by the student directly.
+    """
+    conn = get_db()
+    row = conn.execute("SELECT id FROM students WHERE matric_no = ?", (matric_no,)).fetchone()
+    if row:
+        conn.execute(
+            """UPDATE students SET full_name=?, department=?, level=?, email=?, phone=?,
+                                    faculty=?, rfid_card_uid=?, photo_path=?, updated_at=?
+               WHERE id=?""",
+            (full_name, department, level, email, phone, faculty, rfid_card_uid, photo_path, now(), row["id"]),
+        )
+        conn.commit()
+        conn.close()
+        return row["id"]
+    cur = conn.execute(
+        """INSERT INTO students (matric_no, full_name, department, level, email, phone,
+                                  faculty, rfid_card_uid, photo_path)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (matric_no, full_name, department, level, email, phone, faculty, rfid_card_uid, photo_path),
+    )
+    conn.commit()
+    student_id = cur.lastrowid
+    conn.close()
+    return student_id
+
+
+def add_course_registration(student_id: int, course_id: int):
+    """Ordinary semester registration - ignored if it already exists."""
+    conn = get_db()
+    conn.execute(
+        "INSERT OR IGNORE INTO course_registrations (student_id, course_id) VALUES (?, ?)",
+        (student_id, course_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def is_student_registered_for_course(student_id: int, course_id: int) -> bool:
+    conn = get_db()
+    row = conn.execute(
+        "SELECT 1 FROM course_registrations WHERE student_id = ? AND course_id = ?",
+        (student_id, course_id),
+    ).fetchone()
+    conn.close()
+    return row is not None
