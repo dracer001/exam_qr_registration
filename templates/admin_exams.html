@@ -8,9 +8,14 @@
             <i data-feather="shield"></i>
             <span>Admin</span>
         </div>
-        <a href="{{ url_for('admin_logout') }}" class="btn btn-ghost btn-sm">
-            <i data-feather="log-out"></i> Log out
-        </a>
+        <div style="display:flex; gap:8px;">
+            <a href="{{ url_for('admin_import_master_data') }}" class="btn btn-ghost btn-sm">
+                <i data-feather="upload"></i> Import Master Data
+            </a>
+            <a href="{{ url_for('admin_logout') }}" class="btn btn-ghost btn-sm">
+                <i data-feather="log-out"></i> Log out
+            </a>
+        </div>
     </div>
 
     <div class="grid-two">

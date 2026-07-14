@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Admin - Import Master Data{% endblock %}
+
+{% block content %}
+<div class="container container-wide">
+    <div class="admin-topbar">
+        <div class="admin-topbar-title">
+            <i data-feather="shield"></i>
+            <span>Admin</span>
+        </div>
+        <a href="{{ url_for('admin_exams') }}" class="btn btn-ghost btn-sm">
+            <i data-feather="arrow-left"></i> Back to Exams
+        </a>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <div class="icon-badge"><i data-feather="upload"></i></div>
+            <h1>Import Master Data</h1>
+            <p class="subtitle">
+                Upload each CSV in order - lecturers, then courses, then students,
+                then course registrations. Later steps look up rows created by
+                earlier ones, so importing out of order will skip rows rather
+                than fail outright. Re-uploading any file is safe - existing rows
+                are updated, not duplicated.
+            </p>
+        </div>
+
+        <div class="import-step">
+            <h2>1. Lecturers</h2>
+            <p class="subtitle">Columns: <code>staff_no, full_name, email</code></p>
+            <form method="POST" enctype="multipart/form-data" class="form-row">
+                <input type="hidden" name="which" value="lecturers" />
+                <input type="file" name="csv_file" accept=".csv" required />
+                <button type="submit" class="btn btn-primary">
+                    <i data-feather="upload"></i> Import
+                </button>
+            </form>
+        </div>
+
+        <div class="import-step">
+            <h2>2. Courses</h2>
+            <p class="subtitle">Columns: <code>course_code, title, lecturer_staff_no</code> (lecturers must already be imported)</p>
+            <form method="POST" enctype="multipart/form-data" class="form-row">
+                <input type="hidden" name="which" value="courses" />
+                <input type="file" name="csv_file" accept=".csv" required />
+                <button type="submit" class="btn btn-primary">
+                    <i data-feather="upload"></i> Import
+                </button>
+            </form>
+        </div>
+
+        <div class="import-step">
+            <h2>3. Students</h2>
+            <p class="subtitle">Columns: <code>matric_no, full_name, department, level, email, phone, faculty, rfid_card_uid, photo_path</code> (all but matric_no/full_name/department/level may be blank)</p>
+            <form method="POST" enctype="multipart/form-data" class="form-row">
+                <input type="hidden" name="which" value="students" />
+                <input type="file" name="csv_file" accept=".csv" required />
+                <button type="submit" class="btn btn-primary">
+                    <i data-feather="upload"></i> Import
+                </button>
+            </form>
+        </div>
+
+        <div class="import-step">
+            <h2>4. Course Registrations</h2>
+            <p class="subtitle">Columns: <code>matric_no, course_code</code> (students and courses must already be imported)</p>
+            <form method="POST" enctype="multipart/form-data" class="form-row">
+                <input type="hidden" name="which" value="course_registrations" />
+                <input type="file" name="csv_file" accept=".csv" required />
+                <button type="submit" class="btn btn-primary">
+                    <i data-feather="upload"></i> Import
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

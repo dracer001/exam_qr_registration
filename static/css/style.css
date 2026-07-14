@@ -328,3 +328,11 @@ input:focus, select:focus {
 }
 .student-confirm-card .name { font-size: 15px; font-weight: 700; color: var(--gray-900); }
 .student-confirm-card .matric { font-size: 12px; color: var(--gray-500); margin-top: 2px; }
+
+/* Admin master-data import page */
+.import-step { padding: 18px 0; border-top: 1px solid var(--gray-200); }
+.import-step:first-of-type { border-top: none; }
+.import-step h2 { font-size: 16px; margin-bottom: 4px; }
+.import-step .subtitle { text-align: left; margin-bottom: 12px; }
+.import-step .form-row { grid-template-columns: 1fr auto; align-items: center; gap: 12px; }
+.import-step code { background: var(--gray-100); padding: 1px 5px; border-radius: 4px; font-size: 12px; }

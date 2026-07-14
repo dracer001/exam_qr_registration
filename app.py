@@ -21,6 +21,7 @@ from datetime import datetime
 
 import database as db
 import config
+import import_master_data
 from schemas import StudentRegistrationCreate, ANGLE_LABELS
 
 app = Flask(__name__)
@@ -289,6 +290,60 @@ def admin_exams():
     new_token = request.args.get("new")
     return render_template("admin_exams.html", exams=exams, courses=courses, new_token=new_token,
                             base_url=config.public_base_url(request))
+
+
+@app.route("/admin/import-master-data", methods=["GET", "POST"])
+@require_admin
+def admin_import_master_data():
+    """
+    Web equivalent of running import_master_data.py (or seed_master_data.py)
+    from a shell - for hosts like Render where there's no CLI/shell access
+    to the running service. Uses the exact same import_lecturers/
+    import_courses/import_students/import_course_registrations functions
+    the CLI/seed_master_data.py call, just fed an uploaded file instead of
+    a path on disk - one implementation, not a second copy of the import
+    logic.
+
+    Same ordering rule as the CLI: lecturers -> courses -> students ->
+    course_registrations, since later steps look up rows created by
+    earlier ones (courses reference lecturers, registrations reference
+    both students and courses).
+    """
+    if request.method == "POST":
+        which = request.form.get("which", "")
+        if which not in import_master_data.COMMANDS:
+            flash("Unknown import type.", "error")
+            return redirect(url_for("admin_import_master_data"))
+
+        upload = request.files.get("csv_file")
+        if not upload or upload.filename == "":
+            flash("Choose a CSV file first.", "error")
+            return redirect(url_for("admin_import_master_data"))
+
+        tmp_path = os.path.join(
+            "/tmp", f"import_{which}_{int(datetime.utcnow().timestamp())}.csv"
+        )
+        upload.save(tmp_path)
+        try:
+            result = import_master_data.COMMANDS[which](tmp_path)
+            msg = f"{which}: imported/updated {result['count']} row(s)."
+            if result["skipped"]:
+                msg += f" Skipped {len(result['skipped'])}: " + "; ".join(result["skipped"][:5])
+                if len(result["skipped"]) > 5:
+                    msg += f"; ...and {len(result['skipped']) - 5} more"
+            flash(msg, "success" if not result["skipped"] else "error")
+        except KeyError as e:
+            flash(f"Import failed - missing expected column {e} in the CSV header.", "error")
+        except Exception as e:
+            flash(f"Import failed: {e}", "error")
+        finally:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+        return redirect(url_for("admin_import_master_data"))
+
+    return render_template("admin_import_master_data.html")
 
 
 @app.route("/admin/exams/<int:exam_id>")

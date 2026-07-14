@@ -49,6 +49,7 @@ def import_lecturers(path):
             )
             count += 1
     print(f"Imported/updated {count} lecturer(s).")
+    return {"count": count, "skipped": []}
 
 
 def import_courses(path):
@@ -77,6 +78,7 @@ def import_courses(path):
         print("Warning - lecturer not found for these (course created without one):")
         for s in skipped:
             print(f"  - {s}")
+    return {"count": count, "skipped": skipped}
 
 
 def import_students(path):
@@ -96,6 +98,7 @@ def import_students(path):
             )
             count += 1
     print(f"Imported/updated {count} student(s).")
+    return {"count": count, "skipped": []}
 
 
 def import_course_registrations(path):
@@ -124,6 +127,7 @@ def import_course_registrations(path):
             print(f"  - {s}")
         if len(skipped) > 20:
             print(f"  ...and {len(skipped) - 20} more")
+    return {"count": count, "skipped": skipped}
 
 
 COMMANDS = {
