@@ -359,6 +359,23 @@ def api_get_exam(exam_id):
     return jsonify(success=True, data=exam)
 
 
+@app.route("/api/exams/<int:exam_id>/sync-status", methods=["GET"])
+@require_api_key
+def api_exam_sync_status(exam_id):
+    """
+    Lightweight check the Pi can poll before doing a full registrations
+    pull - just counts, not the actual data, so it's cheap to call
+    often. ?since=<timestamp> is the Pi's last successful sync time;
+    omit it to ask "has anything ever happened here".
+    """
+    exam = db.get_exam_by_id(exam_id)
+    if not exam:
+        return jsonify(success=False, message="Exam not found"), 404
+    since = request.args.get("since")
+    status = db.get_exam_sync_status(exam_id, since)
+    return jsonify(success=True, data=status)
+
+
 @app.route("/api/exams/<int:exam_id>/registrations", methods=["GET"])
 @require_api_key
 def api_exam_registrations(exam_id):

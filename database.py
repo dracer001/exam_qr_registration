@@ -229,6 +229,54 @@ def get_existing_registration(exam_id: int, student_id: int):
     return dict(row) if row else None
 
 
+def get_exam_sync_status(exam_id: int, since: str = None) -> dict:
+    """
+    Tells the Pi whether anything relevant to this exam has changed since
+    its last successful sync. Two independent signals, both compared
+    against `since` (the ISO-ish timestamp the Pi last synced at):
+      - new_registrations: students who registered for this exam after
+        that point (the obvious case - someone new signed up)
+      - updated_students: students who'd ALREADY registered, but whose
+        master record (department, level, RFID card, etc.) was edited
+        afterwards - e.g. a re-import corrected a typo. The Pi's local
+        copy would silently go stale without this second check.
+    `since` is optional - if omitted (never synced before), everything
+    counts as new.
+    """
+    conn = get_db()
+    since = since or "1970-01-01 00:00:00"
+
+    new_regs = conn.execute(
+        "SELECT COUNT(*) AS c FROM registrations WHERE exam_id = ? AND registered_at > ?",
+        (exam_id, since),
+    ).fetchone()["c"]
+
+    updated_students = conn.execute(
+        """SELECT COUNT(*) AS c FROM registrations r
+           JOIN students s ON s.id = r.student_id
+           WHERE r.exam_id = ? AND r.registered_at <= ? AND s.updated_at > ?""",
+        (exam_id, since, since),
+    ).fetchone()["c"]
+
+    latest_row = conn.execute(
+        """SELECT MAX(ts) AS latest FROM (
+               SELECT registered_at AS ts FROM registrations WHERE exam_id = ?
+               UNION ALL
+               SELECT s.updated_at AS ts FROM registrations r
+                   JOIN students s ON s.id = r.student_id WHERE r.exam_id = ?
+           )""",
+        (exam_id, exam_id),
+    ).fetchone()
+    conn.close()
+
+    return {
+        "new_registrations": new_regs,
+        "updated_students": updated_students,
+        "is_stale": (new_regs > 0 or updated_students > 0),
+        "latest_change_at": latest_row["latest"] if latest_row else None,
+    }
+
+
 def create_registration(exam_id: int, student_id: int, course_registration_confirmed: bool = True) -> int:
     conn = get_db()
     cur = conn.execute(
