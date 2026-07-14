@@ -19,7 +19,9 @@ import base64
 import io
 import json
 import os
-from datetime import datetime, time
+import time
+from datetime import datetime
+
 
 import requests
 
