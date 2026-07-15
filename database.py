@@ -152,7 +152,7 @@ def list_registrations_for_exam(exam_id: int) -> list:
     rows = conn.execute(
         """SELECT r.id AS registration_id, r.registered_at, r.status, r.course_registration_confirmed,
                   s.id AS student_id, s.matric_no, s.full_name, s.department,
-                  s.level, s.email, s.phone
+                  s.level, s.email, s.phone, s.rfid_card_uid
            FROM registrations r JOIN students s ON s.id = r.student_id
            WHERE r.exam_id = ?
            ORDER BY r.registered_at DESC""",
@@ -230,19 +230,6 @@ def get_existing_registration(exam_id: int, student_id: int):
 
 
 def get_exam_sync_status(exam_id: int, since: str = None) -> dict:
-    """
-    Tells the Pi whether anything relevant to this exam has changed since
-    its last successful sync. Two independent signals, both compared
-    against `since` (the ISO-ish timestamp the Pi last synced at):
-      - new_registrations: students who registered for this exam after
-        that point (the obvious case - someone new signed up)
-      - updated_students: students who'd ALREADY registered, but whose
-        master record (department, level, RFID card, etc.) was edited
-        afterwards - e.g. a re-import corrected a typo. The Pi's local
-        copy would silently go stale without this second check.
-    `since` is optional - if omitted (never synced before), everything
-    counts as new.
-    """
     conn = get_db()
     since = since or "1970-01-01 00:00:00"
 
@@ -351,7 +338,6 @@ def upsert_course(course_code: str, title: str, lecturer_id: int = None) -> int:
 
 
 def list_courses_for_dropdown() -> list:
-    """For the exam-creation course picker (search/select) - phase 2."""
     conn = get_db()
     rows = conn.execute(
         """SELECT c.id, c.course_code, c.title, l.full_name AS lecturer_name
@@ -377,12 +363,6 @@ def get_course_by_id(course_id: int):
 def upsert_master_student(matric_no: str, full_name: str, department: str, level: str,
                            email: str = None, phone: str = None, faculty: str = None,
                            rfid_card_uid: str = None, photo_path: str = None) -> int:
-    """
-    Populates the master student record ahead of any exam - via bulk
-    import (import_master_data.py), not student self-entry. This is
-    intentionally the same table registration used to read from before,
-    just no longer written to by the student directly.
-    """
     conn = get_db()
     row = conn.execute("SELECT id FROM students WHERE matric_no = ?", (matric_no,)).fetchone()
     if row:
@@ -408,7 +388,6 @@ def upsert_master_student(matric_no: str, full_name: str, department: str, level
 
 
 def add_course_registration(student_id: int, course_id: int):
-    """Ordinary semester registration - ignored if it already exists."""
     conn = get_db()
     conn.execute(
         "INSERT OR IGNORE INTO course_registrations (student_id, course_id) VALUES (?, ?)",
